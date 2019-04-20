@@ -10,7 +10,7 @@ def data_iterator(inf, char_to_idx, buffer=65536, context=512, batch=8, stride=8
         Generator yielding batches of { features, labels }.
         Assumes the language modelling objective.
         A features instance is a `context` long continuous block of characters.
-        The corresponding label to an element of such an instance is the immediately 
+        The corresponding label to an element of such an instance is the immediately
         following character.
         Example:
             'nekonecno'
@@ -26,10 +26,10 @@ def data_iterator(inf, char_to_idx, buffer=65536, context=512, batch=8, stride=8
             A generator function yielding batches of the input data.
     """
     inf = open(inf, 'r', encoding='utf-8')
-    
+
     executor = ThreadPoolExecutor(max_workers=1)
     x_it = _task(inf, buffer, context, batch, char_to_idx, stride)
-    
+
     while x_it != None:
         future = executor.submit(_task, inf, buffer, context, batch, char_to_idx, stride)
         yield from x_it()
@@ -41,24 +41,24 @@ def _task(inf, buffer, context, batch, char_to_idx, stride=None):
         stride = context // 8
     steps = (buffer - (context + 1)) // stride + 1 # ugly +1 because of labels
     buf = inf.read(buffer)
-    
+
     # End of file => end of iteration
     if buf == '':
         return None
-    
+
     idx = [char_to_idx[c] for c in buf]
     x = np.ndarray((steps, context), dtype=np.int32)
     y = np.ndarray((steps, context), dtype=np.int32)
     for i, j in enumerate(range(0, len(idx) - (context + 1) + 1, stride)):
         x[i] = idx[j:j + context]
         y[i] = idx[j + 1:j + context + 1]
-    
+
     n_elems = x.shape[0]
     n_elems = (n_elems // batch) * batch # take only as much as can be batched
     x = x[:n_elems]
     y = y[:n_elems]
     total_batches = n_elems // batch
-    
+
     # shuffle elements from the buffer so that batches are more
     # internally independent
     perm = np.random.permutation(total_batches)
@@ -74,14 +74,14 @@ def _task(inf, buffer, context, batch, char_to_idx, stride=None):
     def iterator():
         for bx, by in zip(x, y):
             yield {'features': bx, 'labels': by}
-    
+
     return iterator2
 
 
 def make_char_to_idx(inf):
     char_to_idx = {}
     i = 0
-    
+
     with open(inf, 'r', encoding='utf-8') as inf:
         for l in inf:
             for c in l:

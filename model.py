@@ -79,7 +79,7 @@ def attn(x, scope, n_state, *, past, hparams):
     assert n_state % hparams.n_head == 0
     if past is not None:
         assert past.shape.ndims == 5 # [batch, 2, head, sequence, features]
-    
+
     def split_heads(x):
         # [batch, sequence, features] => [batch, heads, sequence, features]
         return tf.transpose(split_states(x, hparams.n_head), [0, 2, 1, 3])
@@ -190,6 +190,11 @@ def get_train_ops(hparams, X, Y, past=None):
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=Y, logits=logits)
     loss = tf.reduce_mean(loss, axis=None)
 
+    # tensorboard
+    tf.summary.histogram('logits', logits)
+    tf.summary.histogram('loss', loss)
+    tf.summary.scalar('train_loss', loss)
+
     if hparams.opt == 'adam':
         params = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)#, ".*{}".format('model'))
         grads = tf.gradients(loss, params)
@@ -210,4 +215,3 @@ def get_train_ops(hparams, X, Y, past=None):
         raise Exception("Unsupported optimizer. Pick one of `adam`, `tf_adam`.")
 
     return loss, train_ops
-

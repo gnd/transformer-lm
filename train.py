@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 import sys
 import time
@@ -22,28 +23,34 @@ def log(msg, logs, nl=True):
         l.write(str(msg))
         if nl:
             l.write('\n')
-    
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('infile', type=str, help="path to the text corpus")
     parser.add_argument('-m', '--modelpath', type=str, default="models/", help="path under which model checkpoints will be saved")
     parser.add_argument('-p', '--hparams', type=str, help="path to json-stored hyperparams")
+    parser.add_argument('--sample_steps', type=int, default=5000, help="sample model after how many steps")
+    parser.add_argument('--save_steps', type=int, default=5000, help="save model after how many steps")
+    parser.add_argument('--log_steps', type=int, default=100, help="log output to stdout after how many steps")
     parser.add_argument('-v', '--verbose', action='store_true', help="if present, prints samples generated while training to stdout")
+    parser.add_argument('--log_dir', type=str, default='logs/', help='directory to store tensorboard logs')
     args = parser.parse_args()
 
     hp = default_hparams()
+    hp.sample_every = args.sample_steps
     if args.hparams is not None:
         with open(args.hparams, 'r') as hf:
             hp.parse_json(hf.read())
-    
+
     fname = args.infile
 
     cti = dg.make_char_to_idx(fname)
     itc = {v: k for k, v in cti.items()}
-    
+
     hp.n_vocab = len(cti)
-    
+
+
     batch_size = hp.batch_size
     total_chars = dg.get_char_count(fname)
 
@@ -52,6 +59,8 @@ def main():
     total_updates = ((total_chars - (hp.n_ctx + 1)) // hp.stride + 1) // batch_size * hp.n_epochs
     hp.n_updates_total = total_updates
 
+    gg = dg.data_iterator(fname, cti, buffer=65536, context=hp.n_ctx, batch=batch_size, stride=8)
+    total_batches = len(list(gg))
     g = dg.data_iterator(fname, cti, buffer=65536, context=hp.n_ctx, batch=batch_size, stride=8)
 
     context = tf.placeholder(tf.int32, [batch_size, None])
@@ -66,44 +75,62 @@ def main():
                             temperature=1,
                             top_k=5)
 
-    # sample every `sample_steps`
+    # sample / save / log every N steps
     sample_steps = hp.sample_every
+    save_steps = args.save_steps
+    log_steps = args.log_steps
     steps = 0
-    
-    primed_text = "Keď stál o mnoho rokov neskôr pred popravnou čatou, spomenul si "
+
+    primed_text = "Honza 12. Brezen 2008"
     primed_text = [cti[c] for c in primed_text]
 
     saver = tf.train.Saver(max_to_keep=5)
     signature = str(int(time.time())) # model signature
 
     # log files for model's loss and intermediate samples
-    lossf = open('loss_%s.txt' % signature, 'w')
     trainf = open('train_%s.txt' % signature, 'w', encoding='utf-8')
     logs = [trainf, sys.stdout] if args.verbose else [trainf]
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         for e in range(hp.n_epochs):
-            log("================= Epoch {} =================".format(e + 1), logs)
-            for batch in g:
+            # instrument for tensorboard
+            summaries = tf.summary.merge_all()
+            writer = tf.summary.FileWriter(
+                os.path.join(args.log_dir, time.strftime("%Y-%m-%d-%H-%M-%S")))
+            writer.add_graph(sess.graph)
 
+            for batch in g:
+                start = time.time()
                 # compute loss on batch and update params
-                l, _ = sess.run((loss, train_ops),feed_dict={context: batch['features'],
-                                                            labels: batch['labels']})
-                log('%f\n' % l, lossf)
-            
-                steps += 1
-                if steps % sample_steps == 0:
-                    # sample model
+                summ, l, _ = sess.run((summaries, loss, train_ops), feed_dict={context: batch['features'], labels: batch['labels']})
+                # tensorboard
+                writer.add_summary(summ, steps)
+
+                # sample model every sample_steps
+                if ((steps > 0) & (steps % sample_steps == 0)):
                     log("================= Sampling | {} steps | epoch {} =================".format(steps, e + 1), logs)
                     out = sess.run(output, feed_dict={context: batch_size * [primed_text]})
                     _print_decoded(out, itc, logs)
-                
-                # save model
-                if not os.path.exists(args.modelpath):
-                    os.makedirs(args.modelpath)
-                ckpt_path = os.path.join(args.modelpath, signature + '.ckpt')
-                saver.save(sess, ckpt_path, global_step=e)
+
+                # log process to stdout every log_steps
+                if steps % log_steps == 0:
+                    end = time.time()
+                    print("{}/{} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
+                      .format(steps,
+                      hp.n_epochs * total_batches,
+                      e, l, end - start))
+
+                # save model every save_steps
+                if ((steps > 0) & (steps % save_steps == 0)):
+                    print("Saving model..")
+                    if not os.path.exists(args.modelpath):
+                        os.makedirs(args.modelpath)
+                    ckpt_path = os.path.join(args.modelpath, signature + '.ckpt')
+                    saver.save(sess, ckpt_path, global_step=e)
+
+                # increment steps
+                steps += 1
 
         log("================= End of training | Final samples =================", logs)
         out = sess.run(output, feed_dict={context: batch_size * [primed_text]})
@@ -113,10 +140,9 @@ def main():
     with open('vocab.json', 'w', encoding='utf-8') as f:
         json.dump(cti, f)
     with open('hparams.json', 'w') as f:
-        f.write(hp.to_json)
+        f.write(hp.to_json())
 
     trainf.close()
-    lossf.close()
 
 if __name__ == "__main__":
     main()
