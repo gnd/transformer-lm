@@ -90,6 +90,9 @@ def main():
     # log files for model's loss and intermediate samples
     trainf = open('train_%s.txt' % signature, 'w', encoding='utf-8')
     logs = [trainf, sys.stdout] if args.verbose else [trainf]
+    # create log_dir if not already created
+    if not os.path.exists(args.log_dir):
+        os.makedirs(args.log_dir)
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
