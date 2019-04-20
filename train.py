@@ -50,7 +50,6 @@ def main():
 
     hp.n_vocab = len(cti)
 
-
     batch_size = hp.batch_size
     total_chars = dg.get_char_count(fname)
 
@@ -58,10 +57,6 @@ def main():
     # an intricate learning rate adaptation scheme without which are transformers hard to train
     total_updates = ((total_chars - (hp.n_ctx + 1)) // hp.stride + 1) // batch_size * hp.n_epochs
     hp.n_updates_total = total_updates
-
-    gg = dg.data_iterator(fname, cti, buffer=65536, context=hp.n_ctx, batch=batch_size, stride=8)
-    total_batches = len(list(gg))
-    g = dg.data_iterator(fname, cti, buffer=65536, context=hp.n_ctx, batch=batch_size, stride=8)
 
     context = tf.placeholder(tf.int32, [batch_size, None])
     labels = tf.placeholder(tf.int32, [batch_size, None])
@@ -81,7 +76,7 @@ def main():
     log_steps = args.log_steps
     steps = 0
 
-    primed_text = "Honza 12. Brezen 2008"
+    primed_text = "honza 12. brezen 2000"
     primed_text = [cti[c] for c in primed_text]
 
     saver = tf.train.Saver(max_to_keep=5)
@@ -97,11 +92,18 @@ def main():
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         for e in range(hp.n_epochs):
-            # instrument for tensorboard
+            # tensorboard
             summaries = tf.summary.merge_all()
             writer = tf.summary.FileWriter(
                 os.path.join(args.log_dir, time.strftime("%Y-%m-%d-%H-%M-%S")))
             writer.add_graph(sess.graph)
+
+            g = dg.data_iterator(fname, cti, buffer=65536, context=hp.n_ctx, batch=batch_size, stride=8)
+
+            # this is really stupid but i dont know how to count the amount of batches the generator yields
+            # list(g) for some reason doesnt work for training, so i have to do it on a duplicate generator with the same params
+            gg = dg.data_iterator(fname, cti, buffer=65536, context=hp.n_ctx, batch=batch_size, stride=8)
+            total_batches = len(list(gg))
 
             for batch in g:
                 start = time.time()
