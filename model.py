@@ -191,8 +191,8 @@ def get_train_ops(hparams, X, Y, past=None):
     loss = tf.reduce_mean(loss, axis=None)
 
     # tensorboard
-    tf.summary.histogram('logits', logits)
-    tf.summary.histogram('loss', loss)
+    #tf.summary.histogram('logits', logits)
+    #tf.summary.histogram('loss', loss)
     tf.summary.scalar('train_loss', loss)
 
     if hparams.opt == 'adam':
