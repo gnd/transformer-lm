@@ -1,0 +1,6 @@
+*.txt
+*.json
+__pycache__
+data/
+logs/
+models/
