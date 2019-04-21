@@ -2,7 +2,7 @@
 # This opens up a tunnel to see tensorboard on google colab via ngrok
 # from on https://medium.com/deep-learning-turkey/google-colab-free-gpu-tutorial-e113627b9f5d
 
-LOG_DIR='/content/drive/My Drive/ai-work/logs'
+LOG_DIR='/content/drive/My Drive/ai-work/logs/'
 
 # remove old ngrok
 if [ -e ngrok-stable-linux-amd64.zip ]; then

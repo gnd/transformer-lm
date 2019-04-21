@@ -10,6 +10,8 @@ import datagen as dg
 from sample import sample_sequence
 from model import default_hparams, get_train_ops
 
+from tensorboardcolab import TensorBoardColab
+
 def _print_decoded(outputs, idx_to_char, logs):
     for i in range(outputs.shape[0]):
             text = ''.join([idx_to_char[x] for x in outputs[i]])
@@ -36,6 +38,10 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true', help="if present, prints samples generated while training to stdout")
     parser.add_argument('--log_dir', type=str, default='logs/', help='directory to store tensorboard logs')
     args = parser.parse_args()
+
+    # creating teansorboardcolab
+    print("------- creating tbc:")
+    tb = TensorBoardColab()
 
     hp = default_hparams()
     hp.sample_every = args.sample_steps
@@ -111,6 +117,9 @@ def main():
                 summ, l, _ = sess.run((summaries, loss, train_ops), feed_dict={context: batch['features'], labels: batch['labels']})
                 # tensorboard
                 writer.add_summary(summ, steps)
+                # tensorboardcolab
+                tb.save_value('Train Loss', 'train_loss', steps, l)
+                tb.flush_line('train_loss')
 
                 # sample model every sample_steps
                 if ((steps > 0) & (steps % sample_steps == 0)):
