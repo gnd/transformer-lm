@@ -111,9 +111,6 @@ def main():
                 summ, l, _ = sess.run((summaries, loss, train_ops), feed_dict={context: batch['features'], labels: batch['labels']})
                 # tensorboard
                 writer.add_summary(summ, steps)
-                # tensorboardcolab
-                tb.save_value('Train Loss', 'train_loss', steps, l)
-                tb.flush_line('train_loss')
 
                 # sample model every sample_steps
                 if ((steps > 0) & (steps % sample_steps == 0)):
@@ -123,6 +120,7 @@ def main():
 
                 # log process to stdout every log_steps
                 if steps % log_steps == 0:
+                    writer.flush()
                     end = time.time()
                     print("{}/{} (epoch {}), train_loss = {:.3f}, time/batch = {:.3f}"
                       .format(steps,
